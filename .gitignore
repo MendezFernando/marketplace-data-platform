@@ -1,0 +1,48 @@
+# ─── Python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ─── Secretos ─────────────────────────────────────────────────────────────
+# NUNCA commitear credenciales. .env.example SÍ se commitea (es la plantilla).
+.env
+*.env
+!.env.example
+*.pem
+*.key
+credentials.json
+
+# ─── Datos ────────────────────────────────────────────────────────────────
+# Un repo de código NO almacena datos. El lake vive en MinIO/S3, no en Git.
+data/
+*.csv
+*.parquet
+*.db
+*.duckdb
+!docs/**/*.csv
+
+# ─── Herramientas del stack ───────────────────────────────────────────────
+logs/
+target/
+dbt_packages/
+.user.yml
+spark-warehouse/
+metastore_db/
+derby.log
+airflow.db
+airflow-webserver.pid
+standalone_admin_password.txt
+great_expectations/uncommitted/
+
+# ─── Sistema operativo / editor ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
