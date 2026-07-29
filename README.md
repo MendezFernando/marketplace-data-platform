@@ -57,15 +57,33 @@ versiona y valida los datos para responder preguntas de Finanzas, Growth, Operac
 ├── dags/                DAGs de Airflow (solo orquestación, sin lógica de negocio)
 ├── dbt/                 Proyecto dbt: modelos Silver → Gold, tests y documentación
 ├── docs/                Requisitos, decisiones de arquitectura (ADR) y diagramas
-├── infra/               docker-compose, Dockerfiles y configuración de servicios
+├── infra/               Dockerfiles y ficheros de configuración de los servicios
 ├── notebooks/           Exploración ad-hoc — NUNCA código de producción
 ├── src/marketplace_dp/  Paquete Python: ingesta, transformaciones y utilidades
-└── tests/               Pruebas unitarias y de integración (espejo de src/)
+├── tests/               Pruebas unitarias y de integración (espejo de src/)
+└── docker-compose.yml   Definición de la plataforma local
 ```
 
 ## Puesta en marcha
 
-_Pendiente — se documenta en el Módulo 2 (Docker)._
+**Requisitos:** Docker Desktop con backend WSL 2.
+
+```bash
+cp .env.example .env      # y rellena las credenciales locales
+docker compose up -d      # levanta PostgreSQL + MinIO y crea los buckets
+docker compose ps         # todos los servicios deben estar "healthy"
+```
+
+| Servicio | URL | Uso |
+|---|---|---|
+| PostgreSQL | `localhost:5432` | Data Warehouse |
+| MinIO — API S3 | `localhost:9000` | Lo consumen Spark, Python y dbt |
+| MinIO — Consola | http://localhost:9001 | Interfaz web para inspeccionar el lake |
+
+```bash
+docker compose down       # apaga (conserva los datos)
+docker compose down -v    # apaga y BORRA los volúmenes
+```
 
 ## Licencia
 
