@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
+
 class Settings(BaseSettings):
     # ─── MinIO ────────────────────────────────────────────────
     minio_endpoint: str
@@ -15,7 +16,7 @@ class Settings(BaseSettings):
     minio_bucket_gold: str
 
     # ─── Rutas locales ───────────────────────────────────────
-    landing_path: Path  = PROJECT_ROOT / "data" / "landing"
+    landing_path: Path = PROJECT_ROOT / "data" / "landing"
 
     # Configuración de lectura del .env
     model_config = SettingsConfigDict(
