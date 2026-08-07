@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     # ─── Rutas locales ───────────────────────────────────────
     landing_path: Path = PROJECT_ROOT / "data" / "landing"
 
+    # ─── Spark ───────────────────────────────────────────────
+    # Spark corre sobre la JVM: necesita saber qué JDK usar. Se declara
+    # explícitamente para no depender del JAVA_HOME global de la máquina.
+    java_home: Path
+    spark_driver_memory: str = "4g"
+
     # Configuración de lectura del .env
     model_config = SettingsConfigDict(
         env_file=".env",

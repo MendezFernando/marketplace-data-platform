@@ -46,3 +46,6 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# Binarios nativos de Hadoop para Windows (winutils.exe, hadoop.dll)
+infra/hadoop/
