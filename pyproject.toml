@@ -26,6 +26,10 @@ dependencies = [
     "structlog>=24.1",          # logging estructurado (JSON)
     # ─── Clientes de fuentes ─────────────────────────────────────────────
     "httpx>=0.27",              # cliente HTTP moderno, con reintentos y timeouts
+    # ─── Procesamiento distribuido (Bronze → Silver) ─────────────────────
+    # Versiones acopladas: delta-spark 3.x requiere Spark 3.5.x.
+    "pyspark>=3.5,<4.0",
+    "delta-spark>=3.2,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -62,7 +66,9 @@ select = [
     "RET",      # returns innecesarios
     "ARG",      # argumentos sin usar
 ]
-ignore = ["E501"]  # la longitud de línea la gestiona el formateador
+ignore = ["E501",    # la longitud de línea la gestiona el formateador
+          "N812",    # PySpark usa la convención functions as F
+          "SIM112"] # Variables de Hadoop/JVM deben mantener su formato original
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Pytest
