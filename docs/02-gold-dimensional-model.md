@@ -444,7 +444,35 @@ PostgreSQL, que ofrece SQL estándar, conectores maduros y baja latencia por con
 
 ---
 
-## 7. Decisiones abiertas
+## 7. Verificación: ¿el modelo responde a las preguntas?
+
+Cada pregunta de negocio se traza por el modelo antes de implementar nada: qué mido,
+por qué agrupo, cómo se unen las tablas, y si la consulta se puede escribir.
+
+| Pregunta | ¿Responde? | Tablas implicadas | Qué falta |
+|---|---|---|---|
+| **BQ-00** Entregas tardías | ✅ Sí | `fct_orders` + `dim_date` + `dim_geography` | — |
+| **BQ-01** Margen por categoría | ⚠️ Parcial | `fct_order_items` + `dim_product` | **Tipo de cambio BRL→USD histórico**. En BRL sí responde; en USD no. |
+| **BQ-02** Retención por cohortes | ✅ Sí | `fct_orders` + `dim_customer` | — |
+| **BQ-03** Clima y satisfacción | ⚠️ Parcial | `fct_reviews` + `fct_orders` | **Datos meteorológicos por región y fecha**. La parte del retraso sí responde. |
+| **BQ-04** Segmento de vendedor | ✅ Sí | `fct_order_items` + `dim_seller` (SCD2) | — |
+| **BQ-05** Embudo de compra | ❌ No | *(ninguna)* | **Todo**: clickstream sin ingerir, falta `fct_session_events` y `dim_device` |
+
+**Conclusión:** los tres huecos son **fuentes de datos no ingeridas**, no defectos del
+modelo dimensional. Ninguna de las tablas diseñadas necesita rehacerse para cerrarlos;
+solo hay que añadir dimensiones y hechos nuevos.
+
+**Ampliaciones necesarias, por orden de esfuerzo:**
+
+| Ampliación | Para | Requiere |
+|---|---|---|
+| `dim_currency_rate` (una fila por moneda y día) | BQ-01 | Ingerir la API de tipo de cambio a Bronze |
+| Atributos de clima en `dim_geography` o hecho propio | BQ-03 | Ingerir la API meteorológica a Bronze |
+| `fct_session_events` + `dim_device` | BQ-05 | Generador de clickstream y procesamiento en streaming |
+
+---
+
+## 8. Decisiones abiertas
 
 - **Umbrales del segmento de vendedor.** `Bronze` / `Silver` / `Gold` según GMV de los
   últimos 90 días, pero los cortes concretos son una decisión de negocio pendiente de
