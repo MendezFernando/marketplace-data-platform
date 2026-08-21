@@ -15,7 +15,7 @@ from datetime import date
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
-from marketplace_dp.common.silver import clean_code, read_bronze, to_timestamp
+from marketplace_dp.common.lakehouse import clean_code, read_bronze, to_timestamp
 
 DATE_COLUMNS = [
     "order_purchase_timestamp",

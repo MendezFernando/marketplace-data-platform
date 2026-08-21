@@ -66,9 +66,12 @@ select = [
     "RET",      # returns innecesarios
     "ARG",      # argumentos sin usar
 ]
-ignore = ["E501",    # la longitud de línea la gestiona el formateador
-          "N812",    # PySpark usa la convención functions as F
-          "SIM112"] # Variables de Hadoop/JVM deben mantener su formato original
+ignore = [
+    "E501",    # la longitud de línea la gestiona el formateador
+    "N812",    # PySpark usa la convención universal `functions as F`
+    "SIM112",  # las variables de Hadoop/JVM conservan su formato original (hadoop.home.dir)
+    "RET504",  # nombrar el paso intermedio antes del return documenta la transformación
+]
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Pytest

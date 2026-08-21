@@ -14,7 +14,7 @@ from datetime import date
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
-from marketplace_dp.common.silver import clean_text, read_bronze, to_money
+from marketplace_dp.common.lakehouse import clean_text, read_bronze, to_money
 
 
 def build_payments(spark: SparkSession, ingestion_date: date) -> DataFrame:

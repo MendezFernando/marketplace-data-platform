@@ -1,8 +1,12 @@
-"""Utilidades comunes a todas las transformaciones Bronze → Silver.
+"""Acceso a las tablas del lakehouse: lectura de Bronze y Silver, escritura en Delta.
 
-Concentra el andamiaje que toda entidad repite —leer una partición de Bronze,
-validar la clave primaria, escribir Delta y registrar el resultado— para que
-cada módulo de entidad contenga únicamente su lógica de negocio.
+Concentra el andamiaje que repiten todas las transformaciones —leer una partición
+o una tabla, validar la clave primaria, escribir Delta y registrar el resultado—
+para que cada módulo de entidad contenga únicamente su lógica de negocio.
+
+Es transversal a las capas: lo usan tanto `silver_transformation` como
+`gold_transformation`, porque el mecanismo de publicación es idéntico y solo
+cambia el bucket de destino.
 """
 
 from __future__ import annotations
@@ -38,15 +42,26 @@ def read_bronze(spark: SparkSession, table: str, ingestion_date: date) -> DataFr
     return df
 
 
-def publish_silver(
+def read_silver(spark: SparkSession, table: str) -> DataFrame:
+    """Lee una tabla de Silver y registra cuántas filas trajo."""
+    path = f"s3a://{settings.minio_bucket_silver}/{table}"
+    df = spark.read.format("delta").load(path)
+
+    logger.info("silver_loaded", table=table, path=path, rows=df.count())
+    return df
+
+
+def publish_entity(
     df: DataFrame,
     name: str,
     primary_key: list[str],
+    bucket: str,
     overwrite_schema: bool = False,
 ) -> int:
-    """Valida la clave primaria y publica la entidad en Silver como tabla Delta.
+    """Valida la clave primaria y publica una entidad como tabla Delta.
 
-    Devuelve el número de filas escritas.
+    Devuelve el número de filas escritas. La usan tanto Silver como Gold: la
+    validación, el cacheo y el registro son idénticos; solo cambia el bucket.
 
     El DataFrame se cachea porque se recorre dos veces (validación y escritura);
     sin caché, Spark recalcularía el plan completo en cada acción.
@@ -73,15 +88,15 @@ def publish_silver(
                 f"{distinct_pk} combinaciones distintas frente a {rows} filas"
             )
 
-        path = f"s3a://{settings.minio_bucket_silver}/{name}"
+        path = f"s3a://{bucket}/{name}"
         writer = cached.write.format("delta").mode("overwrite")
         if overwrite_schema:
-            logger.warning("silver_schema_overwrite", table=name, columns=cached.columns)
+            logger.warning("schema_overwrite", table=name, columns=cached.columns)
             writer = writer.option("overwriteSchema", "true")
         writer.save(path)
 
         logger.info(
-            "silver_written",
+            "entity_written",
             table=name,
             path=path,
             rows=rows,
@@ -92,6 +107,20 @@ def publish_silver(
 
     finally:
         cached.unpersist()
+
+
+def publish_silver(
+    df: DataFrame, name: str, primary_key: list[str], overwrite_schema: bool = False
+) -> int:
+    """Publica una entidad en la capa Silver."""
+    return publish_entity(df, name, primary_key, settings.minio_bucket_silver, overwrite_schema)
+
+
+def publish_gold(
+    df: DataFrame, name: str, primary_key: list[str], overwrite_schema: bool = False
+) -> int:
+    """Publica una dimensión o tabla de hechos en la capa Gold."""
+    return publish_entity(df, name, primary_key, settings.minio_bucket_gold, overwrite_schema)
 
 
 def clean_text(column: str) -> F.Column:

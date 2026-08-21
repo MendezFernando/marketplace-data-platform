@@ -16,7 +16,7 @@ from datetime import date
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
-from marketplace_dp.common.silver import clean_text, read_bronze
+from marketplace_dp.common.lakehouse import clean_text, read_bronze
 
 
 def build_products(spark: SparkSession, ingestion_date: date) -> DataFrame:

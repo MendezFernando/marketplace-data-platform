@@ -21,7 +21,7 @@ from datetime import date
 from pyspark.sql import DataFrame, SparkSession, Window
 from pyspark.sql import functions as F
 
-from marketplace_dp.common.silver import clean_code, clean_text, read_bronze, to_timestamp
+from marketplace_dp.common.lakehouse import clean_code, clean_text, read_bronze, to_timestamp
 
 
 def build_customers(spark: SparkSession, ingestion_date: date) -> DataFrame:

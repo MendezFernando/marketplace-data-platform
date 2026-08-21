@@ -15,7 +15,7 @@ from datetime import date
 from pyspark.sql import DataFrame, SparkSession, Window
 from pyspark.sql import functions as F
 
-from marketplace_dp.common.silver import clean_code, clean_text, read_bronze
+from marketplace_dp.common.lakehouse import clean_code, clean_text, read_bronze
 
 
 def build_geolocation(spark: SparkSession, ingestion_date: date) -> DataFrame:

@@ -34,9 +34,9 @@ from uuid import uuid4
 from pyspark.sql import DataFrame, SparkSession
 from structlog.contextvars import bind_contextvars, unbind_contextvars
 
+from marketplace_dp.common.lakehouse import publish_silver
 from marketplace_dp.common.logging import configure_logging, logger
 from marketplace_dp.common.partitions import resolve_ingestion_date
-from marketplace_dp.common.silver import publish_silver
 from marketplace_dp.common.spark import get_spark
 from marketplace_dp.silver_transformation.customers import build_customers
 from marketplace_dp.silver_transformation.geolocation import build_geolocation

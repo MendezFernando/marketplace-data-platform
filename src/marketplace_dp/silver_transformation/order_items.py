@@ -12,7 +12,7 @@ from datetime import date
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
-from marketplace_dp.common.silver import read_bronze, to_money, to_timestamp
+from marketplace_dp.common.lakehouse import read_bronze, to_money, to_timestamp
 
 
 def build_order_items(spark: SparkSession, ingestion_date: date) -> DataFrame:
