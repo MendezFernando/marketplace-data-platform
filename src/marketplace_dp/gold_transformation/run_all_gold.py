@@ -16,6 +16,10 @@ from marketplace_dp.gold_transformation.dim_customer import build_dim_customer
 from marketplace_dp.gold_transformation.dim_date import build_dim_date
 from marketplace_dp.gold_transformation.dim_geography import build_dim_geography
 from marketplace_dp.gold_transformation.dim_product import build_dim_product
+from marketplace_dp.gold_transformation.fct_order_items import build_fct_order_items
+from marketplace_dp.gold_transformation.fct_orders import build_fct_orders
+from marketplace_dp.gold_transformation.fct_payments import build_fct_payments
+from marketplace_dp.gold_transformation.fct_reviews import build_fct_reviews
 
 
 @dataclass(frozen=True)
@@ -27,13 +31,26 @@ class Entity:
     builder: Callable[[SparkSession], DataFrame]
 
 
-# El orden importa: las entidades de referencia se construyen antes que los
-# hechos que las apuntan, para que un fallo temprano no deje Silver a medias.
+# El orden importa: las DIMENSIONES se construyen antes que los HECHOS, porque un
+# hecho guarda claves sustitutas que deben existir previamente. Un fallo temprano
+# deja Gold incompleta, pero nunca con hechos apuntando al vacío.
 ENTITIES: list[Entity] = [
+    # ─── Dimensiones ─────────────────────────────────────────────────────
     Entity("dim_date", ["date_sk"], build_dim_date),
     Entity("dim_customer", ["customer_sk"], build_dim_customer),
     Entity("dim_product", ["product_sk"], build_dim_product),
     Entity("dim_geography", ["geography_sk"], build_dim_geography),
+    # `dim_seller` NO está aquí: usa SCD Tipo 2 y se carga con MERGE, no con
+    # overwrite. Se ejecuta aparte con `python -m ...dim_seller --as-of FECHA`.
+    # ─── Tablas de hechos ────────────────────────────────────────────────
+    Entity("fct_orders", ["order_id"], build_fct_orders),
+    Entity("fct_payments", ["order_id", "payment_sequential"], build_fct_payments),
+    Entity("fct_reviews", ["review_id", "order_id"], build_fct_reviews),
+    Entity(
+        "fct_order_items",
+        ["order_id", "order_item_id"],
+        build_fct_order_items,
+    ),
 ]
 
 

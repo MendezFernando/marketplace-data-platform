@@ -51,6 +51,15 @@ def read_silver(spark: SparkSession, table: str) -> DataFrame:
     return df
 
 
+def read_gold(spark: SparkSession, table: str) -> DataFrame:
+    """Lee una tabla de Gold y registra cuántas filas trajo."""
+    path = f"s3a://{settings.minio_bucket_gold}/{table}"
+    df = spark.read.format("delta").load(path)
+
+    logger.info("gold_loaded", table=table, path=path, rows=df.count())
+    return df
+
+
 def publish_entity(
     df: DataFrame,
     name: str,
