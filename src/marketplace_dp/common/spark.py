@@ -23,6 +23,10 @@ from marketplace_dp.common.config import PROJECT_ROOT, settings
 HADOOP_AWS_VERSION = "3.3.4"
 AWS_SDK_BUNDLE_VERSION = "1.12.262"
 
+# Driver JDBC de PostgreSQL: necesario para materializar Gold en el warehouse,
+# que es donde dbt, Power BI y la API leerán.
+POSTGRES_JDBC_VERSION = "42.7.4"
+
 
 def get_spark(app_name: str = "marketplace-dp") -> SparkSession:
     """Devuelve una SparkSession con Delta Lake y acceso S3A a MinIO."""
@@ -81,6 +85,7 @@ def get_spark(app_name: str = "marketplace-dp") -> SparkSession:
         extra_packages=[
             f"org.apache.hadoop:hadoop-aws:{HADOOP_AWS_VERSION}",
             f"com.amazonaws:aws-java-sdk-bundle:{AWS_SDK_BUNDLE_VERSION}",
+            f"org.postgresql:postgresql:{POSTGRES_JDBC_VERSION}",
         ],
     ).getOrCreate()
 

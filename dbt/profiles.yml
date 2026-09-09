@@ -1,0 +1,24 @@
+# Conexión de dbt al warehouse.
+#
+# Este archivo SÍ se versiona porque no contiene ni una credencial: todas se
+# resuelven con `env_var()` desde el entorno, igual que hace el resto del
+# proyecto con pydantic-settings. Ejecuta dbt con `python scripts/run_dbt.py`,
+# que carga el .env antes de invocarlo.
+
+marketplace_dp:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST') }}"
+      port: "{{ env_var('POSTGRES_PORT') | int }}"
+      dbname: "{{ env_var('POSTGRES_DB') }}"
+      user: "{{ env_var('POSTGRES_USER') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      # Esquema por defecto donde dbt construye sus modelos. Separado de `gold`,
+      # que es el origen materializado por Spark: así queda claro qué produce
+      # cada herramienta y dbt nunca sobrescribe lo que no creó.
+      schema: dbt
+      # Modelos construidos en paralelo. Con 16 vCPU locales, 4 es conservador y
+      # suficiente: el cuello de botella es PostgreSQL, no el cliente.
+      threads: 4

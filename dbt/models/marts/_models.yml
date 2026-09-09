@@ -1,0 +1,64 @@
+version: 2
+
+models:
+  - name: mart_segmento_vendedor
+    description: >
+      BQ-04 — GMV por segmento de vendedor y mes, atribuido al segmento VIGENTE
+      EN LA FECHA DE COMPRA gracias al SCD Tipo 2 de `dim_seller`. El join es
+      directo por `seller_sk` porque la clave sustituta ya lleva la versión
+      dentro: no hace falta filtrar por rango de fechas.
+    columns:
+      - name: year_month
+        tests: [not_null]
+      - name: seller_segment
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["Bronze", "Silver", "Gold", "Unknown"]
+      - name: gmv
+        tests: [not_null]
+
+  - name: mart_ventas_categoria
+    description: >
+      BQ-01 — Ingresos y margen de contribución por categoría de producto y mes.
+      LIMITACIÓN: los importes están en BRL, no en USD. La API de tipo de cambio
+      no está ingerida, así que la conversión a moneda de reporte que pide la
+      pregunta de negocio queda pendiente.
+    columns:
+      - name: year_month
+        tests: [not_null]
+      - name: product_category
+        description: Categoría en inglés; 'Sin categoria' cuando el origen no la trae.
+        tests: [not_null]
+      - name: gmv
+        tests: [not_null]
+
+  - name: mart_satisfaccion
+    description: >
+      BQ-03 — Puntuación media por tramo de retraso de entrega y mes.
+      GRANO DE ANÁLISIS: la orden, no la reseña. Una reseña que cubre varias
+      órdenes se cuenta una vez por orden.
+      LIMITACIÓN: no incluye la parte de la pregunta relativa al clima, cuyos
+      datos no están ingeridos.
+    columns:
+      - name: tramo_retraso
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["a tiempo", "1-3 dias", "4-7 dias", ">7 dias"]
+      - name: score_medio
+        description: Media de 1 a 5. NO ADITIVA — no reagrupar sumando.
+        tests: [not_null]
+
+  - name: mart_cohortes
+    description: >
+      BQ-02 — Retención por cohorte mensual. Cada cliente pertenece a la cohorte
+      del mes de su primera compra. Las tasas de recompra NO se almacenan: se
+      calculan como `recompra_Nm / clientes_cohorte`.
+    columns:
+      - name: cohort_year_month
+        description: Mes de la primera compra del cliente.
+        tests: [not_null, unique]
+      - name: clientes_cohorte
+        description: Denominador de todas las tasas de retención.
+        tests: [not_null]

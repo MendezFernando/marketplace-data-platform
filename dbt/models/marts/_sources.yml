@@ -1,0 +1,89 @@
+version: 2
+
+sources:
+  # Un `source` declara una tabla que dbt NO creó y que es su punto de entrada.
+  # Sirve para tres cosas:
+  #   1. Referenciarla con {{ source('gold', 'fct_orders') }} en vez del nombre
+  #      literal, de modo que si cambia el esquema se edita en un solo sitio.
+  #   2. Que el diagrama de linaje arranque desde el origen real, no desde el
+  #      primer modelo de dbt.
+  #   3. Poder comprobar su FRESCURA con `dbt source freshness`, que es
+  #      exactamente la instrumentación del SLA-01.
+  - name: gold
+    description: >
+      Modelo dimensional construido con PySpark sobre Delta Lake y materializado
+      en PostgreSQL. dbt lo consume como origen y construye encima los marts de
+      negocio; nunca lo modifica.
+    schema: gold
+
+    tables:
+      - name: dim_date
+        description: Una fila por día natural. SCD Tipo 0 — el pasado no cambia.
+        columns:
+          - name: date_sk
+            description: Clave sustituta con formato YYYYMMDD. -1 = fecha desconocida.
+            tests: [unique, not_null]
+
+      - name: dim_customer
+        description: Una fila por persona (`customer_unique_id`). SCD Tipo 1.
+        columns:
+          - name: customer_sk
+            tests: [unique, not_null]
+
+      - name: dim_product
+        description: Una fila por producto. SCD Tipo 1.
+        columns:
+          - name: product_sk
+            tests: [unique, not_null]
+
+      - name: dim_geography
+        description: Una fila por código postal, con su macrorregión del IBGE.
+        columns:
+          - name: geography_sk
+            tests: [unique, not_null]
+          - name: region
+            tests:
+              - accepted_values:
+                  values: ["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul", "Unknown"]
+
+      - name: dim_seller
+        description: >
+          SCD Tipo 2: una fila por vendedor y periodo de vigencia. `seller_id` se
+          repite entre versiones, por eso la clave es `seller_sk`.
+        columns:
+          - name: seller_sk
+            tests: [unique, not_null]
+          - name: seller_segment
+            tests:
+              - accepted_values:
+                  values: ["Bronze", "Silver", "Gold", "Unknown"]
+
+      - name: fct_orders
+        description: Snapshot acumulativo. Una fila por orden.
+        columns:
+          - name: order_id
+            tests: [unique, not_null]
+          - name: customer_sk
+            tests:
+              - relationships:
+                  to: source('gold', 'dim_customer')
+                  field: customer_sk
+
+      - name: fct_order_items
+        description: >
+          Transaccional. Una fila por ítem vendido. `seller_sk` apunta a la
+          versión del vendedor vigente en la fecha de compra.
+        columns:
+          - name: seller_sk
+            tests:
+              - relationships:
+                  to: source('gold', 'dim_seller')
+                  field: seller_sk
+
+      - name: fct_payments
+        description: Transaccional. Una fila por pago sobre una orden.
+
+      - name: fct_reviews
+        description: >
+          Transaccional. Una fila por par (reseña, orden). OJO: una reseña puede
+          cubrir varias órdenes, así que aparece en varias filas.

@@ -1,0 +1,30 @@
+name: "marketplace_dp"
+version: "1.0.0"
+config-version: 2
+
+# Perfil de conexión: debe coincidir con una entrada de profiles.yml
+profile: "marketplace_dp"
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  marketplace_dp:
+    marts:
+      # Los marts se materializan como TABLA, no como vista.
+      #
+      # Una vista se recalcula en cada consulta: si Power BI refresca un panel
+      # cada minuto, la agregación se recomputa cada minuto. Una tabla se calcula
+      # una vez por ejecución del pipeline y se lee instantáneamente.
+      #
+      # La regla: vista cuando la transformación es trivial y quieres frescura
+      # inmediata; tabla cuando el cálculo es caro y el consumo es frecuente.
+      +materialized: table
+      +schema: marts

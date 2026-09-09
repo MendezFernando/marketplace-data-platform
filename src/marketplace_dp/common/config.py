@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     minio_bucket_silver: str
     minio_bucket_gold: str
 
+    # ─── PostgreSQL (Data Warehouse / capa de servicio) ──────
+    postgres_host: str
+    postgres_port: int = 5432
+    postgres_db: str
+    postgres_user: str
+    postgres_password: str
+
     # ─── Rutas locales ───────────────────────────────────────
     landing_path: Path = PROJECT_ROOT / "data" / "landing"
 
