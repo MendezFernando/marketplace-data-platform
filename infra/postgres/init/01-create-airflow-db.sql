@@ -1,0 +1,11 @@
+-- Base de metadatos de Airflow.
+--
+-- Airflow guarda aquí SU PROPIO estado (qué DAG corrió, cuándo, si falló), no
+-- tus datos. Vive en la misma instancia de PostgreSQL para no gastar los ~200 MB
+-- de RAM de un contenedor adicional.
+--
+-- En producción iría en una instancia separada: si Airflow saturara la base, no
+-- querrías que se llevara por delante el warehouse.
+--
+-- Este script se ejecuta UNA SOLA VEZ, cuando el volumen de datos se crea vacío.
+CREATE DATABASE airflow;
