@@ -22,7 +22,9 @@ def parse_args():
 
     parser.add_argument("--table", required=True, nargs="+", help="Nombre de la tabla o 'all'")
 
-    parser.add_argument("--ingestion-date", required=False, help="Fecha de ingesta en formato YYYY-MM-DD")
+    parser.add_argument(
+        "--ingestion-date", required=False, help="Fecha de ingesta en formato YYYY-MM-DD"
+    )
 
     return parser.parse_args()
 

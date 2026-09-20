@@ -23,8 +23,7 @@ from marketplace_dp.common.logging import logger
 def bronze_path(table: str, ingestion_date: date) -> str:
     """Construye la ruta de una partición concreta de Bronze."""
     return (
-        f"s3a://{settings.bucket_bronze}/olist/{table}/"
-        f"ingestion_date={ingestion_date.isoformat()}/"
+        f"s3a://{settings.bucket_bronze}/olist/{table}/ingestion_date={ingestion_date.isoformat()}/"
     )
 
 
