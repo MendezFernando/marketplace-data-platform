@@ -86,7 +86,7 @@ def write_bronze(
     """
 
     destination = (
-        f"s3://{settings.minio_bucket_bronze}"
+        f"s3://{settings.bucket_bronze}"
         f"/olist/{table}/"
         f"ingestion_date={ingestion_date}/"
         f"{table}.parquet"
@@ -98,11 +98,7 @@ def write_bronze(
         destination,
         engine="pyarrow",
         index=False,
-        storage_options={
-            "key": settings.minio_root_user,
-            "secret": settings.minio_root_password,
-            "client_kwargs": {"endpoint_url": settings.minio_endpoint},
-        },
+        storage_options=settings.s3_storage_options,
     )
 
     return destination

@@ -23,7 +23,7 @@ from marketplace_dp.common.logging import logger
 def bronze_path(table: str, ingestion_date: date) -> str:
     """Construye la ruta de una partición concreta de Bronze."""
     return (
-        f"s3a://{settings.minio_bucket_bronze}/olist/{table}/"
+        f"s3a://{settings.bucket_bronze}/olist/{table}/"
         f"ingestion_date={ingestion_date.isoformat()}/"
     )
 
@@ -44,7 +44,7 @@ def read_bronze(spark: SparkSession, table: str, ingestion_date: date) -> DataFr
 
 def read_silver(spark: SparkSession, table: str) -> DataFrame:
     """Lee una tabla de Silver y registra cuántas filas trajo."""
-    path = f"s3a://{settings.minio_bucket_silver}/{table}"
+    path = f"s3a://{settings.bucket_silver}/{table}"
     df = spark.read.format("delta").load(path)
 
     logger.info("silver_loaded", table=table, path=path, rows=df.count())
@@ -53,7 +53,7 @@ def read_silver(spark: SparkSession, table: str) -> DataFrame:
 
 def read_gold(spark: SparkSession, table: str) -> DataFrame:
     """Lee una tabla de Gold y registra cuántas filas trajo."""
-    path = f"s3a://{settings.minio_bucket_gold}/{table}"
+    path = f"s3a://{settings.bucket_gold}/{table}"
     df = spark.read.format("delta").load(path)
 
     logger.info("gold_loaded", table=table, path=path, rows=df.count())
@@ -122,14 +122,14 @@ def publish_silver(
     df: DataFrame, name: str, primary_key: list[str], overwrite_schema: bool = False
 ) -> int:
     """Publica una entidad en la capa Silver."""
-    return publish_entity(df, name, primary_key, settings.minio_bucket_silver, overwrite_schema)
+    return publish_entity(df, name, primary_key, settings.bucket_silver, overwrite_schema)
 
 
 def publish_gold(
     df: DataFrame, name: str, primary_key: list[str], overwrite_schema: bool = False
 ) -> int:
     """Publica una dimensión o tabla de hechos en la capa Gold."""
-    return publish_entity(df, name, primary_key, settings.minio_bucket_gold, overwrite_schema)
+    return publish_entity(df, name, primary_key, settings.bucket_gold, overwrite_schema)
 
 
 def clean_text(column: str) -> F.Column:

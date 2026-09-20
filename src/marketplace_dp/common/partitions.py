@@ -15,12 +15,10 @@ def resolve_ingestion_date(table: str, requested: str | None) -> date:
     """
 
     fs = s3fs.S3FileSystem(
-        key=settings.minio_root_user,
-        secret=settings.minio_root_password,
-        client_kwargs={"endpoint_url": settings.minio_endpoint},
+        **settings.s3_storage_options,
     )
 
-    path = f"{settings.minio_bucket_bronze}/olist/{table}/"
+    path = f"{settings.bucket_bronze}/olist/{table}/"
 
     folders = fs.ls(path)
 

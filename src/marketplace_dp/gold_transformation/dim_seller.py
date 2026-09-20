@@ -157,7 +157,7 @@ def _change_condition() -> str:
 
 def load_dim_seller(spark: SparkSession, as_of: date) -> dict[str, int]:
     """Carga `dim_seller` aplicando SCD Tipo 2. Devuelve métricas de la operación."""
-    path = f"s3a://{settings.minio_bucket_gold}/dim_seller"
+    path = f"s3a://{settings.bucket_gold}/dim_seller"
     snapshot = seller_snapshot(spark, as_of)
 
     # ── Carga inicial ────────────────────────────────────────────────────────

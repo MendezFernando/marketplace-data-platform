@@ -58,19 +58,14 @@ def get_spark(app_name: str = "marketplace-dp") -> SparkSession:
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
         )
-        # ─── S3A apuntando a MinIO ───────────────────────────────────────
+        # ─── S3A: mismo conector para MinIO y para AWS S3 ────────────────
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-        .config("spark.hadoop.fs.s3a.endpoint", settings.minio_endpoint)
-        .config("spark.hadoop.fs.s3a.access.key", settings.minio_root_user)
-        .config("spark.hadoop.fs.s3a.secret.key", settings.minio_root_password)
+        .config("spark.hadoop.fs.s3a.access.key", settings.s3_access_key)
+        .config("spark.hadoop.fs.s3a.secret.key", settings.s3_secret_key)
         .config(
             "spark.hadoop.fs.s3a.aws.credentials.provider",
             "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
         )
-        # MinIO no soporta el direccionamiento por subdominio de AWS
-        # (bucket.s3.amazonaws.com): exige rutas del tipo host/bucket.
-        .config("spark.hadoop.fs.s3a.path.style.access", "true")
-        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
         # ─── Ajustes para ejecución local ────────────────────────────────
         # Por defecto Spark usa 200 particiones de shuffle, pensadas para un
         # clúster. En local eso genera 200 tareas minúsculas y mucha sobrecarga.
@@ -79,6 +74,24 @@ def get_spark(app_name: str = "marketplace-dp") -> SparkSession:
         .config("spark.sql.session.timeZone", "UTC")
         .config("spark.sql.parquet.datetimeRebaseModeInWrite", "CORRECTED")
     )
+
+    if settings.use_custom_endpoint:
+        # MinIO (u otro servicio compatible): hay que decirle a dónde conectarse.
+        # Además exige rutas host/bucket, porque no resuelve el estilo virtual
+        # de AWS (bucket.s3.amazonaws.com), y aquí va sin TLS.
+        builder = (
+            builder.config("spark.hadoop.fs.s3a.endpoint", settings.s3_endpoint)
+            .config("spark.hadoop.fs.s3a.path.style.access", "true")
+            .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
+        )
+    else:
+        # AWS S3 real: el endpoint lo deduce la región, el acceso es por
+        # subdominio y siempre cifrado en tránsito.
+        builder = (
+            builder.config("spark.hadoop.fs.s3a.endpoint.region", settings.s3_region)
+            .config("spark.hadoop.fs.s3a.path.style.access", "false")
+            .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "true")
+        )
 
     spark = configure_spark_with_delta_pip(
         builder,
