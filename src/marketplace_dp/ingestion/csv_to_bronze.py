@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import time
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import NAMESPACE_DNS, uuid4, uuid5
 
@@ -21,6 +21,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Ingest CSV files into Bronze layer")
 
     parser.add_argument("--table", required=True, nargs="+", help="Nombre de la tabla o 'all'")
+
+    parser.add_argument("--ingestion-date", required=False, help="Fecha de ingesta en formato YYYY-MM-DD")
 
     return parser.parse_args()
 
@@ -76,7 +78,7 @@ def add_metadata(
 
 def write_bronze(
     df: pd.DataFrame,
-    ingested_at: datetime,
+    ingestion_date: date,
     table: str,
 ):
     """
@@ -86,7 +88,7 @@ def write_bronze(
     destination = (
         f"s3://{settings.minio_bucket_bronze}"
         f"/olist/{table}/"
-        f"ingestion_date={ingested_at.date()}/"
+        f"ingestion_date={ingestion_date}/"
         f"{table}.parquet"
     )
 
@@ -106,16 +108,22 @@ def write_bronze(
     return destination
 
 
-def ingest_table(table: str):
+def ingest_table(table: str, ingestion_date: str | None = None):
     """
     Ejecuta la ingesta completa de una tabla.
     """
 
     start = time.perf_counter()
 
+    # `ingested_at` es el reloj real (auditoría); `partition_date` es el día de
+    # datos que esta corrida representa. Separarlos es lo que permite reprocesar
+    # el martes desde el jueves y escribir siempre en la partición correcta.
     ingested_at = datetime.now(UTC)
+    partition_date = date.fromisoformat(ingestion_date) if ingestion_date else ingested_at.date()
 
-    batch_id = str(uuid5(NAMESPACE_DNS, f"{table}-{ingested_at.date()}"))
+    # El batch_id depende de la partición, no del reloj: re-ejecutar el mismo
+    # día lógico produce el mismo identificador.
+    batch_id = str(uuid5(NAMESPACE_DNS, f"{table}-{partition_date}"))
 
     bind_contextvars(table=table, batch_id=batch_id)
 
@@ -128,7 +136,7 @@ def ingest_table(table: str):
 
         df = add_metadata(df, source_file, ingested_at, batch_id)
 
-        destination = write_bronze(df, ingested_at, table)
+        destination = write_bronze(df, partition_date, table)
 
         duration = time.perf_counter() - start
 
@@ -156,8 +164,10 @@ def main():
 
     tables = get_tables(args.table)
 
+    ingestion_date = args.ingestion_date
+
     for table in tables:
-        ingest_table(table)
+        ingest_table(table, ingestion_date)
 
 
 if __name__ == "__main__":
