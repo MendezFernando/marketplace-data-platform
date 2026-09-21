@@ -201,6 +201,63 @@ services:
     networks:
       - dataplatform
 
+  # ─────────────────────────────────────────────────────────────────────────
+  #  Redpanda — bus de eventos compatible con la API de Kafka
+  #
+  #  Se usa Redpanda y no Apache Kafka por una razón práctica: Kafka necesita
+  #  dos procesos (broker + coordinación) y mucha más memoria. Redpanda es un
+  #  solo binario, arranca en segundos y habla EXACTAMENTE el mismo protocolo,
+  #  así que el código (productor, consumidor, Spark) no distingue uno de otro.
+  #  En producción encontrarás Kafka, MSK, Confluent o Event Hubs: el cliente
+  #  que escribas aquí funciona contra todos ellos.
+  # ─────────────────────────────────────────────────────────────────────────
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    container_name: mdp-redpanda
+    restart: unless-stopped
+    command:
+      - redpanda start
+      - --smp 1                      # 1 núcleo: suficiente para aprender
+      - --memory 1G
+      - --overprovisioned            # modo "comparto la máquina con otros"
+      - --node-id 0
+      - --check=false
+      # Dos direcciones para el MISMO broker:
+      #   internal -> lo que usan otros contenedores (Airflow, Spark en Docker)
+      #   external -> lo que usas tú desde Windows, en localhost:19092
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"   # API de Kafka para tu máquina
+      - "9644:9644"     # métricas y administración
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - dataplatform
+
+  # ─────────────────────────────────────────────────────────────────────────
+  #  Consola web: ver topics, mensajes y grupos de consumo sin adivinar
+  # ─────────────────────────────────────────────────────────────────────────
+  redpanda-console:
+    image: redpandadata/console:v2.7.2
+    container_name: mdp-redpanda-console
+    restart: unless-stopped
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8081:8080"   # 8080 ya lo usa Airflow, así que se expone en 8081
+    networks:
+      - dataplatform
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Volúmenes — sobreviven a `docker compose down`. Aquí viven los datos.
@@ -212,6 +269,8 @@ volumes:
     name: mdp-minio-data
   airflow_logs:
     name: mdp-airflow-logs
+  redpanda_data:
+    name: mdp-redpanda-data
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  Red privada — los servicios se resuelven entre sí por su nombre

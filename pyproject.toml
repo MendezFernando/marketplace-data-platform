@@ -30,6 +30,10 @@ dependencies = [
     # Versiones acopladas: delta-spark 3.x requiere Spark 3.5.x.
     "pyspark>=3.5,<4.0",
     "delta-spark>=3.2,<4.0",
+    "kafka-python>=2.0",       # cliente de Kafka: productor y consumidor
+    "fastapi>=0.115",          # framework de la API de servicio
+    "uvicorn[standard]>=0.30",  # servidor ASGI que ejecuta FastAPI
+    "psycopg[binary,pool]>=3.2",  # driver de PostgreSQL con pool de conexiones
 ]
 
 [project.optional-dependencies]
@@ -76,6 +80,11 @@ ignore = [
 # ═══════════════════════════════════════════════════════════════════════════
 #  Pytest
 # ═══════════════════════════════════════════════════════════════════════════
+# FastAPI declara sus parametros con Depends() y Query() como valor por
+# defecto: es su diseno, no el anti-patron que B008 intenta detectar.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
