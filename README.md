@@ -2,30 +2,27 @@
 
 [![CI](https://github.com/MendezFernando/marketplace-data-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/MendezFernando/marketplace-data-platform/actions/workflows/ci.yml)
 
-Plataforma de datos completa sobre el dataset real de [Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
-(marketplace brasileño, ~100 mil órdenes): de nueve archivos CSV a un modelo dimensional
-consultable, con orquestación diaria, pruebas automáticas y tres formas de consumo.
+Lakehouse de extremo a extremo sobre el dataset real de
+[Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce): ingesta idempotente,
+arquitectura medallón sobre Delta Lake, modelado dimensional con historial, orquestación diaria y
+pruebas automáticas en cada cambio.
 
-**Del dato crudo a la decisión de negocio, sin pasos manuales.**
+**El objetivo no fue mover datos: fue que se puedan reprocesar, verificar y explicar.**
 
-![Dashboard ejecutivo](docs/img/powerbi.png)
+![DAG diario de Airflow](docs/img/airflow-dag.png)
 
 ---
 
-## Qué resuelve
+## El problema de ingeniería
 
-Un marketplace decide con exportaciones manuales: sin historia, sin métricas consistentes y con
-cada área calculando números distintos. Esta plataforma centraliza, versiona y **valida** los
-datos para responder preguntas concretas de negocio, documentadas como requisitos con su SLA en
-[`docs/00-business-requirements.md`](docs/00-business-requirements.md).
+Un pipeline que "funciona" es fácil. Los tres problemas que este proyecto resuelve son los que
+aparecen cuando algo sale mal:
 
-Tres hallazgos que salieron de ella:
-
-| Hallazgo | Dato | Implicación |
-|---|---|---|
-| El Nordeste incumple la promesa de entrega | **14.3%** de entregas tardías, contra 7.0% en Sul | Estimar la fecha de entrega por región |
-| El retraso destruye la satisfacción | La calificación cae de **4.3** (a tiempo) a **1.7** (>7 días) | La logística es un problema de producto, no solo de costo |
-| Negocio de adquisición, no de retención | Solo **~3%** de clientes recompra en 12 meses | El gasto en captación no se recupera con recurrencia |
+| Problema | Qué se construyó |
+|---|---|
+| **Un día falla y hay que reprocesarlo tres días después** | Cada trabajo se parametriza por fecha lógica y sobrescribe su propia salida: re-ejecutar produce exactamente el mismo resultado |
+| **La lógica de negocio tenía un error y ya está en producción** | Bronze es inmutable; Silver y Gold se reconstruyen desde él sin volver a pedir datos al origen |
+| **Los números cambian y nadie sabe por qué** | 33 pruebas de datos y 22 unitarias que corren solas, más historial versionado en el modelo dimensional |
 
 ---
 
@@ -34,11 +31,11 @@ Tres hallazgos que salieron de ella:
 ```
   FUENTES            INGESTA                LAKEHOUSE (Delta Lake sobre S3)            SERVICIO            CONSUMO
 ┌───────────┐     ┌──────────┐     ┌──────────────────────────────────────────┐   ┌─────────────┐   ┌──────────────┐
-│ 9 CSV     │────▶│  Python  │────▶│ BRONZE   crudo, inmutable, particionado  │   │             │──▶│ Power BI     │
+│ 9 CSV     │────▶│  Python  │────▶│ BRONZE   crudo, inmutable, particionado  │   │             │──▶│ dbt marts    │
 │ Olist     │     │  pandas  │     │          por fecha lógica                │   │ PostgreSQL  │   ├──────────────┤
 │ 1.5M      │     └──────────┘     ├──────────────────────────────────────────┤   │  esquema    │──▶│ FastAPI      │
 │ filas     │                      │ SILVER   limpio, tipado, deduplicado     │──▶│  gold       │   ├──────────────┤
-└───────────┘     ┌──────────┐     │          566,358 filas · 8 entidades     │   │             │──▶│ dbt marts    │
+└───────────┘     ┌──────────┐     │          566,358 filas · 8 entidades     │   │             │──▶│ Power BI     │
                   │ PySpark  │────▶├──────────────────────────────────────────┤   └─────────────┘   └──────────────┘
                   │ + Delta  │     │ GOLD     esquema estrella Kimball        │
                   └──────────┘     │          5 dimensiones + 4 hechos, SCD2  │──▶ Glue Catalog ──▶ Athena (SQL ad hoc)
@@ -51,10 +48,7 @@ Tres hallazgos que salieron de ella:
   EJECUCIÓN     Docker Compose (PostgreSQL, MinIO, Airflow)
 ```
 
-**Decisión de fondo:** el código habla la **API de S3**, no con un proveedor concreto. Migrar de
-MinIO local a AWS fue cambiar variables de entorno, sin tocar una línea de Python.
-
-📄 [ADR-0001 — Arquitectura lakehouse medallón](docs/adr/0001-arquitectura-lakehouse-medallon.md)
+📄 [ADR-0001 — Por qué lakehouse medallón y no un DWH clásico](docs/adr/0001-arquitectura-lakehouse-medallon.md)
 
 ---
 
@@ -62,48 +56,63 @@ MinIO local a AWS fue cambiar variables de entorno, sin tocar una línea de Pyth
 
 | Decisión | Por qué |
 |---|---|
-| **Idempotencia en todos los trabajos** | Cada job se parametriza por fecha y sobrescribe su propia salida. Es lo que permite reintentar y reprocesar sin duplicar. |
-| **Bronze inmutable** | Silver y Gold se reconstruyen desde Bronze; un error de lógica nunca obliga a volver a pedir datos al origen. |
-| **`decimal(12,2)` para dinero, nunca float** | El binario no representa decimales exactos: sobre millones de filas aparecen descuadres de céntimos. |
-| **SCD Tipo 2 en `dim_seller`** | Cada venta conserva el segmento que el vendedor tenía **ese día**, con join point-in-time. Los informes históricos son reproducibles. |
-| **Miembros desconocidos (`-1`)** | Una clave sin resolver se ve como "Unknown" en vez de desaparecer en el siguiente join. |
+| **Idempotencia en todos los trabajos** | Cada job se parametriza por fecha y sobrescribe su propia salida. Es el prerrequisito de los reintentos y del backfill. |
+| **Bronze inmutable y particionado** | Es la póliza de seguro: un error de lógica nunca obliga a volver a pedir datos al origen. |
+| **Fecha lógica, nunca el reloj** | Reprocesar el martes desde el jueves debe escribir en la partición del martes. Sin esto, el backfill produce huecos o duplicados. |
+| **`decimal(12,2)` para dinero, nunca float** | El binario no representa decimales exactos: sobre millones de filas aparecen descuadres de céntimos que rompen la conciliación. |
+| **SCD Tipo 2 en `dim_seller` con MERGE** | Cada venta conserva el segmento vigente **ese día**, vía join point-in-time. Los informes históricos son reproducibles. |
+| **Miembros desconocidos (`-1`)** | Una clave sin resolver se ve como "Unknown" en vez de evaporarse en el siguiente join. |
 | **Nunca almacenar ratios** | Se guardan numerador y denominador; los porcentajes se calculan al consultar y siguen siendo correctos a cualquier nivel de agregación. |
-| **`depends_on_past` solo en el SCD2** | Procesar fechas fuera de orden corrompe el historial. En el resto de tareas estorbaría. |
-| **IAM de privilegio mínimo** | Se retiró `AdministratorAccess` y se verificó en ambos sentidos: el pipeline funciona, y EC2 / borrar buckets / crear usuarios quedan denegados. |
+| **`depends_on_past` solo en el SCD2** | Procesar fechas fuera de orden corrompe el historial. En el resto de tareas solo congelaría el calendario sin necesidad. |
+| **Código desacoplado del proveedor** | El proyecto habla la API de S3, no con MinIO. Migrar a AWS fue cambiar variables de entorno, sin tocar Python. |
+| **IAM de privilegio mínimo, verificado** | Se retiró `AdministratorAccess` y se comprobó en ambos sentidos: el pipeline funciona; EC2, borrar buckets y crear usuarios quedan denegados. |
 
 ---
 
-## Evidencia
+## Las tres capas
 
-| Orquestación · DAG diario de 14 tareas | Catálogo · 9 tablas Delta en AWS Glue |
+**Bronze — lo que llegó.** Ingesta idempotente a Parquet particionado por fecha lógica, con
+columnas de auditoría en cada fila (`_ingested_at`, `_source_file`, `_batch_id`) y logs
+estructurados correlacionados por `run_id`.
+
+**Silver — lo que es cierto.** Ocho entidades de negocio construidas con PySpark sobre Delta Lake:
+tipado explícito, normalización de texto y códigos, y resolución de identidad del cliente
+(99,441 identificadores a nivel orden → 96,096 personas reales). La clave primaria se valida
+**antes** de publicar y el esquema se hace cumplir en la escritura.
+
+**Gold — lo que significa.** Esquema estrella de Kimball: cinco dimensiones conformadas y cuatro
+tablas de hechos a distintos granos, que nunca se unen entre sí. `dim_seller` es SCD Tipo 2
+cargada con MERGE, resolviendo con una segunda fila de clave nula el problema de que un MERGE solo
+dispara una acción por coincidencia cuando un cambio necesita dos: cerrar la versión anterior y
+abrir la nueva.
+
+| Catálogo · 9 tablas Delta en AWS Glue | SQL sin servidores sobre el lakehouse |
 |---|---|
-| ![DAG de Airflow](docs/img/airflow-dag.png) | ![Glue Data Catalog](docs/img/aws-glue.png) |
+| ![Glue Data Catalog](docs/img/aws-glue.png) | ![Athena](docs/img/aws-athena.png) |
 
-| SQL sin servidores sobre el lakehouse | Linaje y pruebas de dbt |
-|---|---|
-| ![Athena](docs/img/aws-athena.png) | ![Linaje dbt](docs/img/dbt-lineage.png) |
-
-La consulta de Athena devuelve 1,274 filas en 2.6 s escaneando 11.55 MB: en formato columnar el
+La consulta de Athena devuelve 1,274 filas en 2.6 s escaneando 11.55 MB: en formato columnar, el
 costo lo determinan las **columnas leídas**, no las filas devueltas.
 
 ---
 
 ## Calidad de datos
 
-Dos tipos de prueba, con propósitos distintos:
+Dos tipos de prueba con propósitos distintos, y la diferencia importa:
 
-**33 pruebas de datos (dbt)** — corren con los datos reales en cada carga:
-unicidad, integridad referencial, valores aceptados y reglas de negocio propias, por ejemplo que
-los clientes que recompran nunca superen el tamaño de su cohorte, y tres que protegen la
-integridad del SCD Tipo 2 (una sola versión vigente, sin rangos invertidos, sin traslapes).
+**33 pruebas de datos (dbt)** — con los datos reales, en cada carga: unicidad, integridad
+referencial, valores aceptados y reglas de negocio propias (por ejemplo, que los clientes que
+recompran nunca superen el tamaño de su cohorte). Tres protegen la integridad del SCD Tipo 2:
+una sola versión vigente por vendedor, sin rangos invertidos y sin traslapes.
 
-**22 pruebas unitarias (pytest)** — corren con datos sintéticos en cada Pull Request.
-Varias son de regresión: blindan errores que ya costó encontrar una vez, como que una fecha nula
-se resuelva al miembro desconocido en lugar de hacer desaparecer la fila al unir con `dim_date`.
+**22 pruebas unitarias (pytest)** — con datos sintéticos, en cada Pull Request. Varias son de
+regresión: blindan errores que ya costó encontrar una vez, como que una fecha nula se resuelva al
+miembro desconocido en lugar de hacer desaparecer la fila al unir con `dim_date`.
+
+![Linaje de dbt](docs/img/dbt-lineage.png)
 
 ```bash
-pytest tests/unit -v          # 22 pruebas
-python scripts/run_dbt.py test  # 33 pruebas
+pytest tests/unit -v            # 22 pruebas de código
+python scripts/run_dbt.py test  # 33 pruebas de datos
 ```
 
 ---
@@ -129,9 +138,6 @@ python scripts/run_dbt.py build
 
 # 4. O todo orquestado: http://localhost:8080  (admin/admin)
 #    Disparar `marketplace_pipeline` con fecha lógica 2018-09-04
-
-# 5. API de servicio: http://localhost:8000/docs
-uvicorn marketplace_dp.api.main:app --reload --port 8000
 ```
 
 **Para ejecutar contra AWS en lugar de MinIO**, solo cambia el `.env`:
@@ -140,6 +146,35 @@ uvicorn marketplace_dp.api.main:app --reload --port 8000
 - S3_ENDPOINT=http://localhost:9000     # MinIO local
 + S3_ENDPOINT=                          # vacío = AWS S3
 ```
+
+---
+
+## Consumo
+
+El modelo se sirve por tres vías, según quién pregunte:
+
+**API REST (FastAPI)** para aplicaciones: validación de parámetros, paginación con tope máximo,
+SQL parametrizado y documentación OpenAPI generada automáticamente.
+
+```bash
+uvicorn marketplace_dp.api.main:app --reload --port 8000   # http://localhost:8000/docs
+```
+
+![API](docs/img/api-docs.png)
+
+**Athena** para consultas ad hoc sobre el lakehouse, sin infraestructura encendida.
+
+**Power BI** para el negocio, conectado a los marts de dbt.
+
+![Dashboard](docs/img/powerbi.png)
+
+Lo que el modelo permitió responder:
+
+| Hallazgo | Dato | Implicación |
+|---|---|---|
+| El Nordeste incumple la promesa de entrega | **14.3%** de entregas tardías, contra 7.0% en Sul | Estimar la fecha de entrega por región |
+| El retraso destruye la satisfacción | La calificación cae de **4.3** (a tiempo) a **1.7** (>7 días) | La logística es un problema de producto, no solo de costo |
+| Negocio de adquisición, no de retención | Solo **~3%** de clientes recompra en 12 meses | El gasto en captación no se recupera con recurrencia |
 
 ---
 
@@ -178,9 +213,9 @@ infra/                       Dockerfile de Airflow, init de PostgreSQL
 
 - Streaming con Kafka y Spark Structured Streaming
 - Observabilidad: alertas de frescura y detección de volúmenes anómalos
-- Despliegue del pipeline dentro de AWS (Glue Jobs o MWAA) e infraestructura como código
+- Ejecución del pipeline dentro de AWS (Glue Jobs o MWAA) e infraestructura como código
 
 ---
 
 Datos: [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) (licencia CC BY-NC-SA 4.0).
-Proyecto de aprendizaje construido por [Fernando Méndez](https://mendezfernando.github.io).
+Proyecto construido por [Fernando Méndez](https://mendezfernando.github.io).
